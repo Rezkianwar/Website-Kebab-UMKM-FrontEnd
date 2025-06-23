@@ -36,7 +36,7 @@ interface DashboardStats {
   totalProducts: number;
   totalCustomers: number;
   totalEmployees: number;
-  recentSales: any[];
+  recentSales: number[];
   topProducts: Array<{
     _id: string;
     name: string;
