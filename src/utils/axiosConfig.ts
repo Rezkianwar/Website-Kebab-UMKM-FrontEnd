@@ -2,7 +2,7 @@
 import axios from 'axios';
 
 const apiClient = axios.create({
-  baseURL: 'http://localhost:5001/api',
+  baseURL: 'https://website-kebab-umkm-backend-api-production.up.railway.app/api',
   timeout: 60000,
 });
 
