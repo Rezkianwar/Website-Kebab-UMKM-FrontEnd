@@ -61,7 +61,13 @@ const login = async (email: string, password: string): Promise<void> => {
   try {
     const res = await apiClient.post("/auth/login", { email, password });
     const token = res.data.token;
-
+    console.log("Token from login API response:", token);
+if (token) {
+    localStorage.setItem("token", token);
+    console.log("Token stored in localStorage:", localStorage.getItem('token'));
+} else {
+    console.warn("No token received from login response!");
+}
     localStorage.setItem("token", token);
     apiClient.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
