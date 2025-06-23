@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import apiClient from '../utils/axiosConfig';
 import { useAuth } from '../context/AuthContext';
-import { a } from 'framer-motion/dist/types.d-CtuPurYT';
+
 
 interface Employee {
   _id: string;

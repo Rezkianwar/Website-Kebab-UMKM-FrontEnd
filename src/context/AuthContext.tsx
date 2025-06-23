@@ -48,13 +48,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   // Set token secara global untuk Axios
-  const setAuthToken = (token: string | null) => {
-    if (token) {
-      apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    } else {
-      delete apiClient.defaults.headers.common['Authorization'];
-    }
-  };
+  // const setAuthToken = (token: string | null) => {
+  //   if (token) {
+  //     apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  //   } else {
+  //     delete apiClient.defaults.headers.common['Authorization'];
+  //   }
+  // };
 
   // Login function
 const login = async (email: string, password: string): Promise<void> => {
