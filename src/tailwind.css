@@ -1,0 +1,76 @@
+/* Tailwind custom styles */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom fonts */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Montserrat:wght@700;800&display=swap');
+
+/* Base styles */
+body {
+  font-family: 'Poppins', sans-serif;
+  @apply bg-gray-50 text-gray-800;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  @apply font-medium;
+}
+
+.accent-font {
+  font-family: 'Montserrat', sans-serif;
+  @apply font-bold;
+}
+
+/* Custom button styles */
+.btn-primary {
+  @apply bg-kebab-red text-white px-6 py-3 rounded-lg font-medium shadow-md hover:bg-kebab-red/90 transition-colors duration-200;
+}
+
+.btn-secondary {
+  @apply bg-white text-kebab-brown border border-kebab-brown/20 px-6 py-3 rounded-lg font-medium shadow-sm hover:bg-kebab-brown/5 transition-colors duration-200;
+}
+
+.btn-outline {
+  @apply bg-transparent text-kebab-red border border-kebab-red px-6 py-3 rounded-lg font-medium hover:bg-kebab-red/5 transition-colors duration-200;
+}
+
+/* Custom animations */
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Responsive utilities */
+@media (max-width: 768px) {
+  .btn-primary, .btn-secondary, .btn-outline {
+    @apply px-4 py-2 text-sm;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-kebab-red/30 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-kebab-red/50;
+}
