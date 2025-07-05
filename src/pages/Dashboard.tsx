@@ -137,32 +137,29 @@ const Dashboard: React.FC = () => {
   };
 
   // Helper untuk chart produk terlaris
-  const getTopProductsChartData = () => {
+ const getTopProductsChartData = () => {
+  if (!stats.topProducts || stats.topProducts.length === 0) {
     return {
-      labels: stats.topProducts.map(p => p.name),
-      datasets: [
-        {
-          label: 'Produk Terlaris',
-          data: stats.topProducts.map(p => p.totalSold),
-          backgroundColor: [
-            'rgba(220, 38, 38, 0.7)',   // Merah
-            'rgba(245, 158, 11, 0.7)',  // Kuning
-            'rgba(16, 185, 129, 0.7)',  // Hijau
-            'rgba(59, 130, 246, 0.7)', // Biru
-            'rgba(139, 92, 246, 0.7)'   // Ungu
-          ],
-          borderColor: [
-            'rgba(220, 38, 38, 1)',
-            'rgba(245, 158, 11, 1)',
-            'rgba(16, 185, 129, 1)',
-            'rgba(59, 130, 246, 1)',
-            'rgba(139, 92, 246, 1)'
-          ],
-          borderWidth: 1
-        }
-      ]
+      labels: ['Belum ada data'],
+      datasets: [{ data: [1], backgroundColor: ['#e5e7eb'] }]
     };
+  }
+
+  return {
+    labels: stats.topProducts.map(p => p.name),
+    datasets: [{
+      label: 'Terjual',
+      data: stats.topProducts.map(p => p.totalSold),
+      backgroundColor: [
+        'rgba(220, 38, 38, 0.7)',
+        'rgba(245, 158, 11, 0.7)',
+        'rgba(16, 185, 129, 0.7)',
+        'rgba(59, 130, 246, 0.7)',
+        'rgba(139, 92, 246, 0.7)'
+      ]
+    }]
   };
+};
 
   return (
     <div className="container mx-auto px-4 py-6">
