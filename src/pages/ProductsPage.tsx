@@ -1,10 +1,9 @@
 import React, { useEffect, useState, ChangeEvent, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import apiClient from '../utils/axiosConfig'; // Gunakan apiClient yang sudah dikonfigurasi
+import apiClient from '../utils/axiosConfig';
 import { useAuth } from '../context/AuthContext';
-
-
+import toast from 'react-hot-toast'; // Pastikan ini ada
 
 interface Product {
   _id: string;
@@ -14,15 +13,13 @@ interface Product {
   discountPrice?: number;
   category: string;
   imageUrl: string;
-  imagePublicId?: string | null; // Sudah benar
+  imagePublicId?: string | null;
   isAvailable: boolean;
   createdAt: string;
 }
 
-// Define interface for API response data for product operations
 interface ApiResponseData {
-    data: Product; // Assuming single product for create/update
-    // You might also have a `success` boolean or `message` string
+  data: Product;
 }
 
 const ProductsPage: React.FC = () => {
@@ -31,9 +28,7 @@ const ProductsPage: React.FC = () => {
 
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string>('');
 
-  // Modal states
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [currentProduct, setCurrentProduct] = useState<Partial<Product>>({
@@ -46,13 +41,10 @@ const ProductsPage: React.FC = () => {
     imagePublicId: null,
   });
 
-  // State untuk upload gambar
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState<boolean>(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
 
-  // Fetch products on mount
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       navigate('/login');
@@ -65,10 +57,9 @@ const ProductsPage: React.FC = () => {
         const res = await apiClient.get('/products');
         console.log('Products fetched:', res.data);
         setProducts(res.data.data || []);
-        setError('');
       } catch (err: any) {
         console.error('Error fetching products:', err.response?.data || err.message);
-        setError('Gagal memuat data produk');
+        toast.error('Gagal memuat data produk!', { duration: 3000 });
       } finally {
         setIsLoading(false);
       }
@@ -79,7 +70,6 @@ const ProductsPage: React.FC = () => {
     }
   }, [isAuthenticated, loading, navigate]);
 
-    // Handle form input change
   const handleChange = (
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
@@ -99,12 +89,10 @@ const ProductsPage: React.FC = () => {
     }
   };
 
-  // Handle file input change
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
       setSelectedFile(file);
-      setUploadError(null); // Reset upload error
 
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -113,32 +101,20 @@ const ProductsPage: React.FC = () => {
       reader.readAsDataURL(file);
     } else {
       setSelectedFile(null);
-      // Jika tidak ada file baru dipilih, kembali ke gambar produk saat ini (jika ada)
-      // Mengatasi `Type 'undefined' is not assignable to type 'SetStateAction<string | null>'`
-      // Pastikan `currentProduct.imageUrl` selalu string atau 'no-image.jpg'
       setPreviewUrl(currentProduct.imageUrl && currentProduct.imageUrl !== 'no-image.jpg' ? currentProduct.imageUrl : null);
     }
   };
 
-
-  // Handle form submit (Create/Update Product)
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    setUploadingImage(true); // Reset status upload gambar
-    setUploadError(null); // Reset error upload gambar
-    setError(''); // Reset error umum
-    setIsLoading(true); // Untuk menonaktifkan tombol form
+    setUploadingImage(true);
+    setIsLoading(true);
 
-    // Hapus deklarasi finalImageUrl dan finalImagePublicId
-    // let finalImageUrl = currentProduct.imageUrl;
-    // let finalImagePublicId = currentProduct.imagePublicId;
+    const submitToastId = toast.loading(isEditing ? 'Menyimpan perubahan produk...' : 'Menambahkan produk baru...');
 
-    // Langkah 1: Kirim FormData untuk Create/Update (semua dalam satu request)
     const formData = new FormData();
 
-    // Append semua field produk non-file
-    // Pastikan nilai diubah ke string karena FormData mengirim semua sebagai string
     formData.append('name', currentProduct.name || '');
     formData.append('description', currentProduct.description || '');
     formData.append('price', String(currentProduct.price || 0));
@@ -146,43 +122,29 @@ const ProductsPage: React.FC = () => {
     formData.append('category', currentProduct.category || 'Lainnya');
     formData.append('isAvailable', String(!!currentProduct.isAvailable));
 
-    // Handle file upload
     if (selectedFile) {
-      formData.append('imageUrl', selectedFile); // 'imageUrl' harus sesuai dengan nama field di Multer backend
+      formData.append('imageUrl', selectedFile);
     } else if (isEditing && currentProduct.imageUrl === 'no-image.jpg' && products.find(p => p._id === currentProduct._id)?.imageUrl !== 'no-image.jpg') {
-        // Ini adalah skenario ketika pengguna mengedit, dan sebelumnya ada gambar,
-        // lalu pengguna menghapus gambar tanpa mengunggah yang baru (yaitu, `previewUrl` menjadi null,
-        // dan `currentProduct.imageUrl` sudah diset ke 'no-image.jpg' di handleFileChange atau saat reset form)
-        // Kita perlu mengirim sinyal ke backend bahwa gambar harus dihapus.
-        // Berdasarkan controller backend yang saya berikan, mengirim `imageUrl: 'no-image.jpg'` (tanpa file baru)
-        // akan memicu penghapusan gambar lama di Cloudinary jika ada.
-        formData.append('imageUrl', 'no-image.jpg');
+      formData.append('imageUrl', 'no-image.jpg');
     } else {
-        // Jika tidak ada file baru DAN tidak ada indikasi hapus gambar,
-        // kirim kembali imageUrl dan imagePublicId yang sudah ada.
-        // Ini penting agar gambar tidak hilang jika hanya field lain yang diupdate.
-        formData.append('imageUrl', currentProduct.imageUrl || 'no-image.jpg');
-        if (currentProduct.imagePublicId) {
-            formData.append('imagePublicId', currentProduct.imagePublicId);
-        }
+      formData.append('imageUrl', currentProduct.imageUrl || 'no-image.jpg');
+      if (currentProduct.imagePublicId) {
+        formData.append('imagePublicId', currentProduct.imagePublicId);
+      }
     }
 
-
-    // Ambil token dari localStorage untuk otorisasi
     const token = localStorage.getItem('token');
     const config = {
-        headers: {
-            'Content-Type': 'multipart/form-data', // Penting untuk FormData
-            'Authorization': token ? `Bearer ${token}` : '', // Tambahkan token jika ada
-        },
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
     };
 
     try {
-      // Perbaiki error `res` implicitly has type `any`
-      let res: { data: { data: Product } }; // Definisikan tipe untuk res
+      let res: { data: { data: Product } };
 
       if (isEditing) {
-        // Untuk UPDATE
         res = await apiClient.put<ApiResponseData>(`/products/${currentProduct._id}`, formData, config);
         setProducts(
           products.map((product) =>
@@ -191,13 +153,13 @@ const ProductsPage: React.FC = () => {
               : product
           )
         );
+        toast.success('Produk berhasil diperbarui!', { id: submitToastId });
       } else {
-        // Untuk CREATE
         res = await apiClient.post<ApiResponseData>('/products', formData, config);
         setProducts([...products, res.data.data]);
+        toast.success('Produk berhasil ditambahkan!', { id: submitToastId });
       }
 
-      // Close modal and reset form
       setIsModalOpen(false);
       setCurrentProduct({
         name: '',
@@ -205,46 +167,90 @@ const ProductsPage: React.FC = () => {
         price: 0,
         category: 'Kebab Daging',
         isAvailable: true,
-        imageUrl: 'no-image.jpg', // Reset ke default
-        imagePublicId: null,      // Reset ke default
+        imageUrl: 'no-image.jpg',
+        imagePublicId: null,
       });
       setIsEditing(false);
-      setSelectedFile(null); // Reset file yang dipilih
-      setPreviewUrl(null); // Reset preview gambar
+      setSelectedFile(null);
+      setPreviewUrl(null);
     } catch (err: any) {
       console.error('Error saving product:', err.response?.data || err.message);
-      setError(err.response?.data?.error || 'Gagal menyimpan produk');
-      setUploadError(err.response?.data?.error || 'Gagal mengunggah gambar/menyimpan produk.');
+      const errorMessage = err.response?.data?.error || (isEditing ? 'Gagal memperbarui produk.' : 'Gagal menambahkan produk.');
+      toast.error(errorMessage, { id: submitToastId });
     } finally {
-       setUploadingImage(false);
+      setUploadingImage(false);
       setIsLoading(false);
     }
   };
 
-  // Handle delete product
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Apakah Anda yakin ingin menghapus produk ini?')) {
-      try {
-        await apiClient.delete(`/products/${id}`);
-        setProducts(products.filter((product) => product._id !== id));
-      } catch (err: any) {
-        console.error('Error deleting product:', err.response?.data || err.message);
-        setError(err.response?.data?.error || 'Gagal menghapus produk');
-      }
-    }
+  // --- START MODIFIKASI handleDelete ---
+  const handleDelete = (id: string, productName: string) => {
+    toast((t) => (
+      <div className="flex flex-col items-center p-2">
+        <p className="text-gray-800 text-center mb-3">
+          Apakah Anda yakin ingin menghapus produk **{productName}**?
+          <br/>Tindakan ini tidak dapat dibatalkan.
+        </p>
+        <div className="flex gap-2 w-full justify-center">
+          <button
+            onClick={() => {
+              toast.dismiss(t.id); // Tutup toast konfirmasi
+              performDelete(id); // Lanjutkan dengan penghapusan
+            }}
+            className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition-colors text-sm"
+          >
+            Ya, Hapus!
+          </button>
+          <button
+            onClick={() => toast.dismiss(t.id)} // Tutup toast konfirmasi
+            className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded transition-colors text-sm"
+          >
+            Batal
+          </button>
+        </div>
+      </div>
+    ), {
+      duration: Infinity, // Toast akan tetap terbuka sampai diklik
+      position: 'top-center',
+      icon: '⚠️', // Opsional: Tambahkan ikon peringatan
+      style: {
+        maxWidth: '400px', // Atur lebar toast
+        padding: '16px',
+        borderRadius: '8px',
+        background: '#fff',
+        color: '#333',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+      },
+    });
   };
 
-  // Open edit modal
+  // Fungsi terpisah untuk melakukan penghapusan sebenarnya
+  const performDelete = async (id: string) => {
+    toast.promise(
+      apiClient.delete(`/products/${id}`),
+      {
+        loading: 'Menghapus produk...',
+        success: () => {
+          setProducts(products.filter((product) => product._id !== id));
+          return 'Produk berhasil dihapus!';
+        },
+        error: (err) => {
+          console.error('Error deleting product:', err.response?.data || err.message);
+          return err.response?.data?.error || 'Gagal menghapus produk!';
+        },
+      }
+    );
+  };
+  // --- END MODIFIKASI handleDelete ---
+
   const handleEdit = (product: Product) => {
     setCurrentProduct(product);
-    // Set previewUrl ke imageUrl produk yang ada, jika bukan default 'no-image.jpg'
     setPreviewUrl(product.imageUrl === 'no-image.jpg' ? null : product.imageUrl);
-    setSelectedFile(null); // Pastikan tidak ada file baru yang dipilih secara default
+    setSelectedFile(null);
     setIsEditing(true);
     setIsModalOpen(true);
   };
 
-  // Open add modal
   const handleAdd = () => {
     setCurrentProduct({
       name: '',
@@ -252,11 +258,11 @@ const ProductsPage: React.FC = () => {
       price: 0,
       category: 'Kebab Daging',
       isAvailable: true,
-      imageUrl: 'no-image.jpg', // Reset ke default
-      imagePublicId: null,      // Reset ke default
+      imageUrl: 'no-image.jpg',
+      imagePublicId: null,
     });
-    setSelectedFile(null); // Reset file yang dipilih
-    setPreviewUrl(null); // Reset preview gambar
+    setSelectedFile(null);
+    setPreviewUrl(null);
     setIsEditing(false);
     setIsModalOpen(true);
   };
@@ -274,12 +280,6 @@ const ProductsPage: React.FC = () => {
           Tambah Produk
         </motion.button>
       </div>
-
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4">
-          {error}
-        </div>
-      )}
 
       {isLoading ? (
         <div className="flex justify-center items-center h-64">
@@ -359,7 +359,7 @@ const ProductsPage: React.FC = () => {
                         Edit
                       </button>
                       <button
-                        onClick={() => handleDelete(product._id)}
+                        onClick={() => handleDelete(product._id, product.name)} 
                         className="text-red-600 hover:text-red-900"
                       >
                         Hapus
@@ -488,27 +488,22 @@ const ProductsPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => {
-                        setSelectedFile(null); // Pastikan tidak ada file baru
-                        setPreviewUrl(null); // Hapus preview
-                        setCurrentProduct(prev => ({ ...prev, imageUrl: 'no-image.jpg', imagePublicId: null })); // Set ke default
+                        setSelectedFile(null);
+                        setPreviewUrl(null);
+                        setCurrentProduct(prev => ({ ...prev, imageUrl: 'no-image.jpg', imagePublicId: null }));
                       }}
                       className="mt-2 text-red-600 hover:text-red-800 text-sm"
                     >
                       Hapus Gambar Saat Ini
                     </button>
                   )}
-                    {/* START: Code untuk Animasi Loading Gambar */}
                   {uploadingImage && (
                     <div className="flex items-center mt-2 text-kebab-green">
                       <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-kebab-green mr-2"></div>
                       <span>Mengunggah gambar...</span>
                     </div>
                   )}
-                  {/* END: Code untuk Animasi Loading Gambar */}
-
-                  {!uploadingImage && uploadError && <p className="text-red-500 text-sm mt-1">{uploadError}</p>}
                 </div>
-
 
                 <div className="flex items-center mb-4">
                   <input
@@ -534,9 +529,8 @@ const ProductsPage: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setIsModalOpen(false);
-                    setSelectedFile(null); // Reset file saat batal
-                    setPreviewUrl(null); // Reset preview saat batal
-                    setUploadError(null); // Reset error
+                    setSelectedFile(null);
+                    setPreviewUrl(null);
                   }}
                   className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-kebab-red"
                 >
@@ -544,12 +538,10 @@ const ProductsPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={isLoading || uploadingImage} // Tombol dinonaktifkan jika sedang loading atau mengunggah gambar
+                  disabled={isLoading || uploadingImage}
                   className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-kebab-red hover:bg-kebab-brown focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-kebab-red"
                 >
-                  {/* START: Teks tombol berubah berdasarkan status loading/upload */}
                   {isLoading ? 'Memproses...' : (uploadingImage ? 'Mengunggah...' : (isEditing ? 'Simpan Perubahan' : 'Tambah Produk'))}
-                  {/* END: Teks tombol berubah berdasarkan status loading/upload */}
                 </button>
               </div>
             </form>

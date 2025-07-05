@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import toast from 'react-hot-toast'; // Import toast dari react-hot-toast
 
 const Contact: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -20,16 +21,47 @@ const Contact: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Form submission logic will be implemented later
-    console.log('Form submitted:', formData);
-    alert('Terima kasih! Pesan Anda telah terkirim.');
-    setFormData({
-      name: '',
-      email: '',
-      phone: '',
-      message: '',
-      subject: 'Pertanyaan Umum'
-    });
+    
+    // ===== START MODIFIKASI DENGAN REACT HOT TOAST =====
+    
+    // Pertama, tampilkan notifikasi loading.
+    // Ini bagus untuk memberikan umpan balik instan bahwa aksi sedang diproses.
+    const loadingToastId = toast.loading('Mengirim pesan Anda...');
+
+ 
+    setTimeout(() => {
+      console.log('Form submitted:', formData);
+
+      // Anggap pengiriman berhasil
+      const isSuccess = true; // Ganti ini dengan hasil sebenarnya dari API call Anda
+
+      if (isSuccess) {
+        // Hapus notifikasi loading dan tampilkan notifikasi sukses
+        toast.success('Terima kasih! Pesan Anda telah terkirim.', {
+          id: loadingToastId, // Penting: gunakan ID yang sama untuk memperbarui notifikasi loading
+          duration: 4000, // Notifikasi akan bertahan 4 detik
+          position: 'top-center' // Atur posisi spesifik untuk notifikasi ini jika diinginkan
+        });
+        
+        // Reset form data setelah berhasil
+        setFormData({
+          name: '',
+          email: '',
+          phone: '',
+          message: '',
+          subject: 'Pertanyaan Umum'
+        });
+      } else {
+        // Jika terjadi kesalahan saat pengiriman
+        toast.error('Gagal mengirim pesan. Silakan coba lagi nanti.', {
+          id: loadingToastId, // Perbarui notifikasi loading menjadi error
+          duration: 5000,
+          position: 'top-center'
+        });
+      }
+    }, 2000); // Simulasi delay 2 detik
+
+    // ===== END MODIFIKASI DENGAN REACT HOT TOAST =====
   };
 
   const fadeInUp = {
@@ -272,18 +304,27 @@ const Contact: React.FC = () => {
           </motion.div>
         </div>
         
-        {/* Map */}
+             {/* ===== START MODIFIKASI UNTUK MAP ===== */}
         <motion.div
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true, amount: 0.1 }}
           transition={{ duration: 0.6, delay: 0.4 }}
-          className="mt-12 bg-white rounded-xl shadow-md overflow-hidden h-80"
+          className="mt-12 bg-white rounded-xl shadow-md overflow-hidden h-80" // Gunakan h-80 agar peta punya tinggi yang cukup
         >
-          <div className="w-full h-full bg-kebab-green/10 flex items-center justify-center text-kebab-brown">
-            [Peta Lokasi Akan Ditampilkan di Sini]
-          </div>
+          {/* Ganti div ini dengan iframe Google Maps Anda */}
+          <iframe
+            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d454.4679382743167!2d106.81424032291227!3d-6.418915596231073!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e69e97ef22fab3d%3A0x34f960f04de892fd!2sJl.%20Gandaria%201%20Depok!5e0!3m2!1sid!2sid!4v1751116456861!5m2!1sid!2sid" 
+            width="100%" // Gunakan 100% agar responsif terhadap parent-nya
+            height="100%" // Gunakan 100% agar mengisi tinggi div parent-nya
+            style={{ border: 0 }} // Gunakan object style untuk CSS di React
+            allowFullScreen={true} // Gunakan camelCase untuk prop React
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade" // Gunakan camelCase untuk prop React
+            title="Lokasi Toko Kebab" // Tambahkan title untuk aksesibilitas
+          ></iframe>
         </motion.div>
+        {/* ===== END MODIFIKASI UNTUK MAP ===== */}
       </div>
     </section>
   );

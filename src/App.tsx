@@ -15,6 +15,7 @@ import CustomersPage from './pages/CustomersPage';
 import EmployeesPage from './pages/EmployeesPage';
 import SalesPage from './pages/SalesPage';
 import DashboardLayout from './components/layout/DashboardLayout';
+import { Toaster } from 'react-hot-toast';
 
 const LandingPage: React.FC = () => {
   return (
@@ -168,6 +169,12 @@ const App: React.FC = () => {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
+         <Toaster 
+          position="top-center" // Kamu bisa memilih posisi lain: 'top-left', 'top-center', 'bottom-left', 'bottom-center', 'bottom-right'
+          reverseOrder={false} // Atur apakah notifikasi baru muncul di atas atau di bawah notifikasi lama
+          gutter={8} // Jarak antar notifikasi
+          containerClassName="" 
+        />
       </AuthProvider>
     </Router>
   );

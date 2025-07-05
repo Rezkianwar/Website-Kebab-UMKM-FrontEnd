@@ -2,16 +2,16 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
+import toast from 'react-hot-toast'; // <--- Import toast dari react-hot-toast
 
 const Login: React.FC = () => {
-  // const navigate = useNavigate();
   const { login } = useAuth(); // Ambil fungsi login dari AuthContext
 
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   });
-  const [error, setError] = useState('');
+  // const [error, setError] = useState(''); // <--- Hapus state error ini
   const [loading, setLoading] = useState(false);
 
   const { email, password } = formData;
@@ -23,17 +23,34 @@ const Login: React.FC = () => {
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
+    // setError(''); // <--- Hapus ini juga
+
+    let loadingToastId: string | undefined; // Variabel untuk menyimpan ID toast loading
 
     try {
+      loadingToastId = toast.loading('Login...'); // Tampilkan toast loading
       await login(email, password); // <-- Panggil fungsi login()
-      
+
+      // Jika login berhasil
+      toast.success('Login berhasil! Selamat datang.', {
+        id: loadingToastId, // Gunakan ID toast loading agar toast sebelumnya diganti
+        duration: 3000,
+        position: 'top-center'
+      });
+      // Tidak perlu reset form karena biasanya setelah login berhasil akan redirect
+      // setFormData({ email: '', password: '' }); 
+
     } catch (err: any) {
-      setError(
-        err.message || 'Login gagal. Silakan coba lagi.'
-      );
+      const errorMessage = err.message || 'Login gagal. Silakan coba lagi.';
+      toast.error(errorMessage, {
+        id: loadingToastId, // Gunakan ID toast loading agar toast sebelumnya diganti
+        duration: 5000,
+        position: 'top-center'
+      });
+      //setError(errorMessage); // <--- Hapus ini
     } finally {
       setLoading(false);
+      // toast.dismiss(loadingToastId); // Ini tidak perlu jika menggunakan id di toast.success/error
     }
   };
 
@@ -58,7 +75,8 @@ const Login: React.FC = () => {
           </p>
         </div>
 
-        {error && (
+        {/* Hapus blok error ini karena kita akan menggunakan toast */}
+        {/* {error && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -66,7 +84,7 @@ const Login: React.FC = () => {
           >
             {error}
           </motion.div>
-        )}
+        )} */}
 
         <form className="mt-8 space-y-6" onSubmit={onSubmit}>
           <div className="rounded-md shadow-sm -space-y-px">

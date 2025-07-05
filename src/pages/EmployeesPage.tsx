@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import apiClient from '../utils/axiosConfig';
 import { useAuth } from '../context/AuthContext';
-
+import toast from 'react-hot-toast'; // Import react-hot-toast
 
 interface Employee {
   _id: string;
@@ -22,11 +22,11 @@ interface Employee {
 const EmployeesPage: React.FC = () => {
   const { isAuthenticated, loading } = useAuth();
   const navigate = useNavigate();
-  
+
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string>('');
-  
+  // const [error, setError] = useState<string>(''); // Tidak lagi diperlukan karena toast akan menangani error
+
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [isEditing, setIsEditing] = useState<boolean>(false);
@@ -40,37 +40,37 @@ const EmployeesPage: React.FC = () => {
     status: 'Aktif',
     notes: ''
   });
-  
+
   // Fetch employees
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       navigate('/login');
       return;
     }
-    
+
     const fetchEmployees = async () => {
       try {
         setIsLoading(true);
-        const res = await apiClient.get('/employees');
+        const res = await apiClient.get('/employees'); // API Path: /employees
         setEmployees(res.data.data);
-        setError('');
+        // setError(''); // Tidak lagi diperlukan
       } catch (err: any) {
-        setError('Gagal memuat data pegawai');
-        console.error(err);
+        toast.error('Gagal memuat data pegawai!', { duration: 3000 }); // Notifikasi error
+        console.error('Error fetching employees:', err.response?.data || err.message);
       } finally {
         setIsLoading(false);
       }
     };
-    
+
     if (isAuthenticated) {
       fetchEmployees();
     }
   }, [isAuthenticated, loading, navigate]);
-  
+
   // Handle form input change
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
-    
+
     if (type === 'number') {
       setCurrentEmployee({
         ...currentEmployee,
@@ -83,26 +83,27 @@ const EmployeesPage: React.FC = () => {
       });
     }
   };
-  
+
   // Handle form submit
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
+
+    const submitToastId = toast.loading(isEditing ? 'Menyimpan perubahan pegawai...' : 'Menambahkan pegawai baru...');
+    setIsLoading(true); // Set loading state for the form submission
+
     try {
       if (isEditing) {
-        await apiClient.put(`/employees/${currentEmployee._id}`, currentEmployee);
-        
-        // Update employees list
-        setEmployees(employees.map(employee => 
+        await apiClient.put(`/employees/${currentEmployee._id}`, currentEmployee); // API Path: /employees/:id
+        setEmployees(employees.map(employee =>
           employee._id === currentEmployee._id ? { ...employee, ...currentEmployee } as Employee : employee
         ));
+        toast.success('Data pegawai berhasil diperbarui!', { id: submitToastId });
       } else {
-        const res = await apiClient.post('/employees', currentEmployee);
-        
-        // Add new employee to list
+        const res = await apiClient.post('/employees', currentEmployee); // API Path: /employees
         setEmployees([...employees, res.data.data]);
+        toast.success('Pegawai baru berhasil ditambahkan!', { id: submitToastId });
       }
-      
+
       // Close modal and reset form
       setIsModalOpen(false);
       setCurrentEmployee({
@@ -117,33 +118,80 @@ const EmployeesPage: React.FC = () => {
       });
       setIsEditing(false);
     } catch (err: any) {
-      console.error('Error saving employee:', err);
-      setError(err.response?.data?.error || 'Gagal menyimpan data pegawai');
+      console.error('Error saving employee:', err.response?.data || err.message);
+      const errorMessage = err.response?.data?.error || (isEditing ? 'Gagal menyimpan perubahan pegawai.' : 'Gagal menambahkan pegawai baru.');
+      toast.error(errorMessage, { id: submitToastId });
+    } finally {
+      setIsLoading(false); // Reset loading state
     }
   };
-  
-  // Handle delete employee
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Apakah Anda yakin ingin menghapus data pegawai ini?')) {
-      try {
-        await apiClient.delete(`/employees/${id}`);
-        
-        // Remove employee from list
-        setEmployees(employees.filter(employee => employee._id !== id));
-      } catch (err: any) {
-        console.error('Error deleting employee:', err);
-        setError(err.response?.data?.error || 'Gagal menghapus data pegawai');
+
+  // Handle delete employee dengan konfirmasi toast kustom
+  const handleDelete = (id: string, employeeName: string) => { // Menerima employeeName
+    toast((t) => (
+      <div className="flex flex-col items-center p-2">
+        <p className="text-gray-800 text-center mb-3">
+          Apakah Anda yakin ingin menghapus data pegawai **{employeeName}**?
+          <br/>Tindakan ini tidak dapat dibatalkan.
+        </p>
+        <div className="flex gap-2 w-full justify-center">
+          <button
+            onClick={() => {
+              toast.dismiss(t.id); // Tutup toast konfirmasi
+              performDelete(id); // Lanjutkan dengan penghapusan
+            }}
+            className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition-colors text-sm"
+          >
+            Ya, Hapus!
+          </button>
+          <button
+            onClick={() => toast.dismiss(t.id)} // Tutup toast konfirmasi
+            className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded transition-colors text-sm"
+          >
+            Batal
+          </button>
+        </div>
+      </div>
+    ), {
+      duration: Infinity, // Toast akan tetap terbuka sampai diklik
+      position: 'top-center',
+      icon: '⚠️', // Opsional: Tambahkan ikon peringatan
+      style: {
+        maxWidth: '400px', // Atur lebar toast
+        padding: '16px',
+        borderRadius: '8px',
+        background: '#fff',
+        color: '#333',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+      },
+    });
+  };
+
+  // Fungsi terpisah untuk melakukan penghapusan sebenarnya
+  const performDelete = async (id: string) => {
+    toast.promise(
+      apiClient.delete(`/employees/${id}`), // API Path: /employees/:id
+      {
+        loading: 'Menghapus data pegawai...',
+        success: () => {
+          setEmployees(employees.filter(employee => employee._id !== id));
+          return 'Data pegawai berhasil dihapus!';
+        },
+        error: (err) => {
+          console.error('Error deleting employee:', err.response?.data || err.message);
+          return err.response?.data?.error || 'Gagal menghapus data pegawai!';
+        },
       }
-    }
+    );
   };
-  
+
   // Handle modal open for editing employee
   const handleEdit = (employee: Employee) => {
     setCurrentEmployee(employee);
     setIsEditing(true);
     setIsModalOpen(true);
   };
-  
+
   // Handle modal open for adding new employee
   const handleAdd = () => {
     setCurrentEmployee({
@@ -159,7 +207,7 @@ const EmployeesPage: React.FC = () => {
     setIsEditing(false);
     setIsModalOpen(true);
   };
-  
+
   // Get status badge color
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -173,7 +221,7 @@ const EmployeesPage: React.FC = () => {
         return 'bg-gray-100 text-gray-800';
     }
   };
-  
+
   return (
     <div className="container mx-auto px-4 py-6">
       <div className="flex justify-between items-center mb-6">
@@ -187,14 +235,8 @@ const EmployeesPage: React.FC = () => {
           Tambah Pegawai
         </motion.button>
       </div>
-      
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4">
-          {error}
-        </div>
-      )}
-      
-      {isLoading ? (
+
+      {isLoading && employees.length === 0 ? (
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-kebab-red"></div>
         </div>
@@ -256,7 +298,7 @@ const EmployeesPage: React.FC = () => {
                         Edit
                       </button>
                       <button
-                        onClick={() => handleDelete(employee._id)}
+                        onClick={() => handleDelete(employee._id, employee.name)}
                         className="text-red-600 hover:text-red-900"
                       >
                         Hapus
@@ -275,7 +317,7 @@ const EmployeesPage: React.FC = () => {
           </table>
         </div>
       )}
-      
+
       {/* Employee Form Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -289,7 +331,7 @@ const EmployeesPage: React.FC = () => {
                 {isEditing ? 'Edit Data Pegawai' : 'Tambah Pegawai Baru'}
               </h3>
             </div>
-            
+
             <form onSubmit={handleSubmit}>
               <div className="px-6 py-4">
                 <div className="mb-4">
@@ -300,13 +342,13 @@ const EmployeesPage: React.FC = () => {
                     type="text"
                     id="name"
                     name="name"
-                    value={currentEmployee.name}
+                    value={currentEmployee.name || ''}
                     onChange={handleChange}
                     required
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-kebab-red focus:border-kebab-red"
                   />
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
                     <label htmlFor="position" className="block text-sm font-medium text-gray-700 mb-1">
@@ -315,7 +357,7 @@ const EmployeesPage: React.FC = () => {
                     <select
                       id="position"
                       name="position"
-                      value={currentEmployee.position}
+                      value={currentEmployee.position || ''}
                       onChange={handleChange}
                       required
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-kebab-red focus:border-kebab-red"
@@ -328,7 +370,7 @@ const EmployeesPage: React.FC = () => {
                       <option value="Lainnya">Lainnya</option>
                     </select>
                   </div>
-                  
+
                   <div>
                     <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">
                       Status
@@ -336,7 +378,7 @@ const EmployeesPage: React.FC = () => {
                     <select
                       id="status"
                       name="status"
-                      value={currentEmployee.status}
+                      value={currentEmployee.status || ''}
                       onChange={handleChange}
                       required
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-kebab-red focus:border-kebab-red"
@@ -347,7 +389,7 @@ const EmployeesPage: React.FC = () => {
                     </select>
                   </div>
                 </div>
-                
+
                 <div className="mb-4">
                   <label htmlFor="salary" className="block text-sm font-medium text-gray-700 mb-1">
                     Gaji
@@ -356,14 +398,14 @@ const EmployeesPage: React.FC = () => {
                     type="number"
                     id="salary"
                     name="salary"
-                    value={currentEmployee.salary}
+                    value={currentEmployee.salary || 0}
                     onChange={handleChange}
                     required
                     min="0"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-kebab-red focus:border-kebab-red"
                   />
                 </div>
-                
+
                 <div className="mb-4">
                   <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
                     Email
@@ -372,13 +414,13 @@ const EmployeesPage: React.FC = () => {
                     type="email"
                     id="email"
                     name="email"
-                    value={currentEmployee.email}
+                    value={currentEmployee.email || ''}
                     onChange={handleChange}
                     required
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-kebab-red focus:border-kebab-red"
                   />
                 </div>
-                
+
                 <div className="mb-4">
                   <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
                     Nomor Telepon
@@ -387,13 +429,13 @@ const EmployeesPage: React.FC = () => {
                     type="text"
                     id="phone"
                     name="phone"
-                    value={currentEmployee.phone}
+                    value={currentEmployee.phone || ''}
                     onChange={handleChange}
                     required
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-kebab-red focus:border-kebab-red"
                   />
                 </div>
-                
+
                 <div className="mb-4">
                   <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">
                     Alamat
@@ -401,14 +443,14 @@ const EmployeesPage: React.FC = () => {
                   <textarea
                     id="address"
                     name="address"
-                    value={currentEmployee.address}
+                    value={currentEmployee.address || ''}
                     onChange={handleChange}
                     required
                     rows={2}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-kebab-red focus:border-kebab-red"
                   />
                 </div>
-                
+
                 <div className="mb-4">
                   <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
                     Catatan (Opsional)
@@ -423,7 +465,7 @@ const EmployeesPage: React.FC = () => {
                   />
                 </div>
               </div>
-              
+
               <div className="px-6 py-3 bg-gray-50 flex justify-end space-x-3 rounded-b-lg">
                 <button
                   type="button"
@@ -434,9 +476,10 @@ const EmployeesPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
+                  disabled={isLoading}
                   className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-kebab-red hover:bg-kebab-brown focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-kebab-red"
                 >
-                  {isEditing ? 'Simpan Perubahan' : 'Tambah Pegawai'}
+                  {isLoading ? 'Memproses...' : (isEditing ? 'Simpan Perubahan' : 'Tambah Pegawai')}
                 </button>
               </div>
             </form>

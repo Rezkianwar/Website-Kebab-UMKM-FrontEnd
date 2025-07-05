@@ -30,7 +30,7 @@ const About: React.FC = () => {
             variants={{
               hidden: { width: 0 },
               visible: { 
-                width: "80px",
+                width: "50px",
                 transition: { duration: 0.8, delay: 0.2 }
               }
             }}

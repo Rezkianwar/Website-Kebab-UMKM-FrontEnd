@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import apiClient from '../utils/axiosConfig';
 import { useAuth } from '../context/AuthContext';
-
+import toast from 'react-hot-toast'; // Pastikan ini sudah diimport
 
 interface Customer {
   _id: string;
@@ -21,11 +21,10 @@ interface Customer {
 const CustomersPage: React.FC = () => {
   const { isAuthenticated, loading } = useAuth();
   const navigate = useNavigate();
-  
+
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string>('');
-  
+
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [isEditing, setIsEditing] = useState<boolean>(false);
@@ -36,33 +35,33 @@ const CustomersPage: React.FC = () => {
     address: '',
     notes: ''
   });
-  
+
   // Fetch customers
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       navigate('/login');
       return;
     }
-    
+
     const fetchCustomers = async () => {
       try {
         setIsLoading(true);
-         const res = await apiClient.get('/customers');
+        const res = await apiClient.get('/customers');
+        console.log('Customers fetched:', res.data); // Untuk debugging
         setCustomers(res.data.data);
-        setError('');
       } catch (err: any) {
-        setError('Gagal memuat data pelanggan');
-        console.error(err);
+        console.error('Error fetching customers:', err.response?.data || err.message);
+        toast.error('Gagal memuat data pelanggan!', { duration: 3000 });
       } finally {
         setIsLoading(false);
       }
     };
-    
+
     if (isAuthenticated) {
       fetchCustomers();
     }
   }, [isAuthenticated, loading, navigate]);
-  
+
   // Handle form input change
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -71,27 +70,29 @@ const CustomersPage: React.FC = () => {
       [name]: value
     });
   };
-  
+
   // Handle form submit
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
+
+    // Menggunakan toast.loading untuk indikator saat submit
+    const submitToastId = toast.loading(isEditing ? 'Menyimpan perubahan pelanggan...' : 'Menambahkan pelanggan baru...');
+    setIsLoading(true); // Set loading state untuk menonaktifkan tombol submit
+
     try {
       if (isEditing) {
-        await apiClient.put(`/api/customers/${currentCustomer._id}`, currentCustomer);
-        
-        // Update customers list
-        setCustomers(customers.map(customer => 
+        await apiClient.put(`/customers/${currentCustomer._id}`, currentCustomer);
+        setCustomers(customers.map(customer =>
           customer._id === currentCustomer._id ? { ...customer, ...currentCustomer } as Customer : customer
         ));
+        toast.success('Data pelanggan berhasil diperbarui!', { id: submitToastId });
       } else {
-        const res = await apiClient.post('/api/customers', currentCustomer);
-        
-        // Add new customer to list
+        const res = await apiClient.post('/customers', currentCustomer);
         setCustomers([...customers, res.data.data]);
+        toast.success('Pelanggan baru berhasil ditambahkan!', { id: submitToastId });
       }
-      
-      // Close modal and reset form
+
+      // Tutup modal dan reset form setelah sukses
       setIsModalOpen(false);
       setCurrentCustomer({
         name: '',
@@ -102,33 +103,80 @@ const CustomersPage: React.FC = () => {
       });
       setIsEditing(false);
     } catch (err: any) {
-      console.error('Error saving customer:', err);
-      setError(err.response?.data?.error || 'Gagal menyimpan data pelanggan');
+      console.error('Error saving customer:', err.response?.data || err.message);
+      const errorMessage = err.response?.data?.error || (isEditing ? 'Gagal menyimpan perubahan pelanggan.' : 'Gagal menambahkan pelanggan baru.');
+      toast.error(errorMessage, { id: submitToastId });
+    } finally {
+      setIsLoading(false); // Reset loading state
     }
   };
-  
-  // Handle delete customer
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Apakah Anda yakin ingin menghapus data pelanggan ini?')) {
-      try {
-        await apiClient.delete(`/api/customers/${id}`);
-        
-        // Remove customer from list
-        setCustomers(customers.filter(customer => customer._id !== id));
-      } catch (err: any) {
-        console.error('Error deleting customer:', err);
-        setError(err.response?.data?.error || 'Gagal menghapus data pelanggan');
+
+  // Handle delete customer dengan konfirmasi toast kustom
+  const handleDelete = (id: string, customerName: string) => {
+    toast((t) => (
+      <div className="flex flex-col items-center p-2">
+        <p className="text-gray-800 text-center mb-3">
+          Apakah Anda yakin ingin menghapus data pelanggan **{customerName}**?
+          <br/>Tindakan ini tidak dapat dibatalkan.
+        </p>
+        <div className="flex gap-2 w-full justify-center">
+          <button
+            onClick={() => {
+              toast.dismiss(t.id); // Tutup toast konfirmasi
+              performDelete(id); // Lanjutkan dengan penghapusan
+            }}
+            className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition-colors text-sm"
+          >
+            Ya, Hapus!
+          </button>
+          <button
+            onClick={() => toast.dismiss(t.id)} // Tutup toast konfirmasi
+            className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded transition-colors text-sm"
+          >
+            Batal
+          </button>
+        </div>
+      </div>
+    ), {
+      duration: Infinity, // Toast akan tetap terbuka sampai diklik
+      position: 'top-center',
+      icon: '⚠️', // Opsional: Tambahkan ikon peringatan
+      style: {
+        maxWidth: '400px', // Atur lebar toast
+        padding: '16px',
+        borderRadius: '8px',
+        background: '#fff',
+        color: '#333',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+      },
+    });
+  };
+
+  // Fungsi terpisah untuk melakukan penghapusan sebenarnya (setelah dikonfirmasi)
+  const performDelete = async (id: string) => {
+    toast.promise(
+      apiClient.delete(`/customers/${id}`),
+      {
+        loading: 'Menghapus data pelanggan...',
+        success: () => {
+          setCustomers(customers.filter(customer => customer._id !== id));
+          return 'Data pelanggan berhasil dihapus!';
+        },
+        error: (err) => {
+          console.error('Error deleting customer:', err.response?.data || err.message);
+          return err.response?.data?.error || 'Gagal menghapus data pelanggan!';
+        },
       }
-    }
+    );
   };
-  
+
   // Handle modal open for editing customer
   const handleEdit = (customer: Customer) => {
     setCurrentCustomer(customer);
     setIsEditing(true);
     setIsModalOpen(true);
   };
-  
+
   // Handle modal open for adding new customer
   const handleAdd = () => {
     setCurrentCustomer({
@@ -141,7 +189,7 @@ const CustomersPage: React.FC = () => {
     setIsEditing(false);
     setIsModalOpen(true);
   };
-  
+
   return (
     <div className="container mx-auto px-4 py-6">
       <div className="flex justify-between items-center mb-6">
@@ -155,14 +203,8 @@ const CustomersPage: React.FC = () => {
           Tambah Pelanggan
         </motion.button>
       </div>
-      
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4">
-          {error}
-        </div>
-      )}
-      
-      {isLoading ? (
+
+      {isLoading && customers.length === 0 ? ( // Menampilkan loading spinner hanya jika belum ada data
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-kebab-red"></div>
         </div>
@@ -222,7 +264,7 @@ const CustomersPage: React.FC = () => {
                         Edit
                       </button>
                       <button
-                        onClick={() => handleDelete(customer._id)}
+                        onClick={() => handleDelete(customer._id, customer.name)}
                         className="text-red-600 hover:text-red-900"
                       >
                         Hapus
@@ -241,7 +283,7 @@ const CustomersPage: React.FC = () => {
           </table>
         </div>
       )}
-      
+
       {/* Customer Form Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -255,7 +297,7 @@ const CustomersPage: React.FC = () => {
                 {isEditing ? 'Edit Data Pelanggan' : 'Tambah Pelanggan Baru'}
               </h3>
             </div>
-            
+
             <form onSubmit={handleSubmit}>
               <div className="px-6 py-4">
                 <div className="mb-4">
@@ -266,13 +308,13 @@ const CustomersPage: React.FC = () => {
                     type="text"
                     id="name"
                     name="name"
-                    value={currentCustomer.name}
+                    value={currentCustomer.name || ''}
                     onChange={handleChange}
                     required
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-kebab-red focus:border-kebab-red"
                   />
                 </div>
-                
+
                 <div className="mb-4">
                   <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
                     Email
@@ -281,13 +323,13 @@ const CustomersPage: React.FC = () => {
                     type="email"
                     id="email"
                     name="email"
-                    value={currentCustomer.email}
+                    value={currentCustomer.email || ''}
                     onChange={handleChange}
                     required
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-kebab-red focus:border-kebab-red"
                   />
                 </div>
-                
+
                 <div className="mb-4">
                   <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
                     Nomor Telepon
@@ -296,13 +338,13 @@ const CustomersPage: React.FC = () => {
                     type="text"
                     id="phone"
                     name="phone"
-                    value={currentCustomer.phone}
+                    value={currentCustomer.phone || ''}
                     onChange={handleChange}
                     required
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-kebab-red focus:border-kebab-red"
                   />
                 </div>
-                
+
                 <div className="mb-4">
                   <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">
                     Alamat
@@ -310,14 +352,14 @@ const CustomersPage: React.FC = () => {
                   <textarea
                     id="address"
                     name="address"
-                    value={currentCustomer.address}
+                    value={currentCustomer.address || ''}
                     onChange={handleChange}
                     required
                     rows={2}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-kebab-red focus:border-kebab-red"
                   />
                 </div>
-                
+
                 <div className="mb-4">
                   <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
                     Catatan (Opsional)
@@ -332,7 +374,7 @@ const CustomersPage: React.FC = () => {
                   />
                 </div>
               </div>
-              
+
               <div className="px-6 py-3 bg-gray-50 flex justify-end space-x-3 rounded-b-lg">
                 <button
                   type="button"
@@ -343,9 +385,10 @@ const CustomersPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
+                  disabled={isLoading} // Menonaktifkan tombol saat loading
                   className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-kebab-red hover:bg-kebab-brown focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-kebab-red"
                 >
-                  {isEditing ? 'Simpan Perubahan' : 'Tambah Pelanggan'}
+                  {isLoading ? 'Memproses...' : (isEditing ? 'Simpan Perubahan' : 'Tambah Pelanggan')}
                 </button>
               </div>
             </form>
