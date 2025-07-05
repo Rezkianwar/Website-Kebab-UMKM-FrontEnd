@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import apiClient from '../utils/axiosConfig';
 import { useAuth } from '../context/AuthContext';
 import { Line } from 'react-chartjs-2';
+import { toast, Toaster } from 'react-hot-toast'; // Modifikasi: Tambah import Toaster
+
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -99,15 +101,15 @@ interface Employee {
 const SalesPage: React.FC = () => {
   const { isAuthenticated, loading } = useAuth();
   const navigate = useNavigate();
-  
+
   const [sales, setSales] = useState<Sale[]>([]);
   const [salesStats, setSalesStats] = useState<SalesStats | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string>('');
-  
+  // Modifikasi: Hapus state error
+
   // Date range filter
   const [startDate, setStartDate] = useState<string>(() => {
     const date = new Date();
@@ -118,7 +120,7 @@ const SalesPage: React.FC = () => {
     const date = new Date();
     return date.toISOString().split('T')[0];
   });
-  
+
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [isEditing, setIsEditing] = useState<boolean>(false);
@@ -132,68 +134,70 @@ const SalesPage: React.FC = () => {
     orderType: 'Dine-in',
     notes: ''
   });
-  
+
   // New item state
   const [newItem, setNewItem] = useState({
     product: '',
     quantity: 1
   });
-  
+
   // Fetch sales and related data
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       navigate('/login');
       return;
     }
-    
+
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        
+
         // Fetch sales with date range
         const salesRes = await apiClient.get(`/sales/range?startDate=${startDate}&endDate=${endDate}`);
         setSales(salesRes.data.data);
-        
+
         // Fetch sales stats
         const statsRes = await apiClient.get('/sales/stats');
         setSalesStats(statsRes.data.data);
-        
+
         // Fetch customers for dropdown
         const customersRes = await apiClient.get('/customers');
         setCustomers(customersRes.data.data);
-        
+
         // Fetch products for dropdown
         const productsRes = await apiClient.get('/products');
         setProducts(productsRes.data.data);
-        
+
         // Fetch employees for dropdown
         const employeesRes = await apiClient.get('/employees');
         setEmployees(employeesRes.data.data);
-        
-        setError('');
+
+        // Modifikasi: Hapus setError('')
       } catch (err: any) {
-        setError('Gagal memuat data penjualan');
+        // Modifikasi: Ganti setError dengan toast.error
+        toast.error(`Gagal memuat data penjualan: ${err.response?.data?.message || err.message}`, { duration: 5000 });
         console.error(err);
       } finally {
         setIsLoading(false);
       }
     };
-    
+
     if (isAuthenticated) {
       fetchData();
     }
   }, [isAuthenticated, loading, navigate, startDate, endDate]);
-  
+
   // Handle date filter change
   const handleDateFilterChange = () => {
     // Re-fetch data with new date range
     // This will trigger the useEffect above
+    toast.success('Filter tanggal diterapkan!', { duration: 2000 });
   };
-  
+
   // Handle form input change
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    
+
     if (name === 'customer') {
       const selectedCustomer = customers.find(c => c._id === value);
       setCurrentSale({
@@ -221,11 +225,11 @@ const SalesPage: React.FC = () => {
       });
     }
   };
-  
+
   // Handle new item change
   const handleNewItemChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    
+
     if (name === 'product') {
       setNewItem({
         ...newItem,
@@ -238,14 +242,20 @@ const SalesPage: React.FC = () => {
       });
     }
   };
-  
+
   // Add item to sale
   const handleAddItem = () => {
-    if (!newItem.product) return;
-    
+    if (!newItem.product) {
+      toast.error('Pilih produk yang ingin ditambahkan!', { duration: 2000 });
+      return;
+    }
+
     const selectedProduct = products.find(p => p._id === newItem.product);
-    if (!selectedProduct) return;
-    
+    if (!selectedProduct) {
+      toast.error('Produk tidak ditemukan!', { duration: 2000 });
+      return;
+    }
+
     const updatedItems = [
       ...(currentSale.items || []),
       {
@@ -255,111 +265,162 @@ const SalesPage: React.FC = () => {
         quantity: newItem.quantity
       }
     ];
-    
+
     // Calculate new total
     const newTotal = updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    
+
     setCurrentSale({
       ...currentSale,
       items: updatedItems,
       totalAmount: newTotal
     });
-    
+
     // Reset new item form
     setNewItem({
       product: '',
       quantity: 1
     });
+    toast.success('Item berhasil ditambahkan!', { duration: 1500 });
   };
-  
+
   // Remove item from sale
   const handleRemoveItem = (index: number) => {
     const updatedItems = [...(currentSale.items || [])];
+    const removedItemName = updatedItems[index]?.name; // Dapatkan nama item sebelum dihapus
     updatedItems.splice(index, 1);
-    
+
     // Calculate new total
     const newTotal = updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    
+
     setCurrentSale({
       ...currentSale,
       items: updatedItems,
       totalAmount: newTotal
     });
+    toast.success(`Item '${removedItemName}' berhasil dihapus!`, { duration: 1500 });
   };
-  
+
   // Handle form submit
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
+
     if (!currentSale.items || currentSale.items.length === 0) {
-      setError('Penjualan harus memiliki minimal 1 item');
+      toast.error('Penjualan harus memiliki minimal 1 item'); // Modifikasi: Ganti setError dengan toast.error
       return;
     }
-    
+
     try {
-      if (isEditing) {
-        await apiClient.put(`/sales/${currentSale._id}`, currentSale);
-        
-        // Update sales list
-        setSales(sales.map(sale => 
-          sale._id === currentSale._id ? { ...sale, ...currentSale } as Sale : sale
-        ));
-      } else {
-        const res = await apiClient.post('/sales', currentSale);
-        
-        // Add new sale to list
-        setSales([...sales, res.data.data]);
-      }
-      
-      // Close modal and reset form
-      setIsModalOpen(false);
-      setCurrentSale({
-        customer: null,
-        items: [],
-        totalAmount: 0,
-        paymentMethod: 'Tunai',
-        paymentStatus: 'Belum Dibayar',
-        orderStatus: 'Baru',
-        orderType: 'Dine-in',
-        notes: ''
+      const promise = isEditing
+        ? apiClient.put(`/sales/${currentSale._id}`, currentSale)
+        : apiClient.post('/sales', currentSale);
+
+      await toast.promise(promise, { // Modifikasi: Gunakan toast.promise
+        loading: isEditing ? 'Menyimpan perubahan penjualan...' : 'Menambahkan penjualan baru...',
+        success: (res) => {
+          if (isEditing) {
+            setSales(sales.map(sale =>
+              sale._id === currentSale._id ? { ...sale, ...res.data.data } as Sale : sale // Pastikan update menggunakan data respons
+            ));
+          } else {
+            setSales([...sales, res.data.data]);
+          }
+          // Close modal and reset form
+          setIsModalOpen(false);
+          setCurrentSale({
+            customer: null,
+            items: [],
+            totalAmount: 0,
+            paymentMethod: 'Tunai',
+            paymentStatus: 'Belum Dibayar',
+            orderStatus: 'Baru',
+            orderType: 'Dine-in',
+            notes: ''
+          });
+          setIsEditing(false);
+          // Refresh stats
+          apiClient.get('/sales/stats').then(statsRes => setSalesStats(statsRes.data.data));
+          return isEditing ? 'Perubahan penjualan berhasil disimpan!' : 'Penjualan berhasil ditambahkan!';
+        },
+        error: (err) => {
+          console.error('Error saving sale:', err);
+          return err.response?.data?.error || 'Gagal menyimpan data penjualan';
+        },
       });
-      setIsEditing(false);
-      
-      // Refresh stats
-      const statsRes = await apiClient.get('/sales/stats');
-      setSalesStats(statsRes.data.data);
-    } catch (err: any) {
-      console.error('Error saving sale:', err);
-      setError(err.response?.data?.error || 'Gagal menyimpan data penjualan');
+    } catch (err) {
+      // Catch synchronous errors, though toast.promise usually handles async ones.
+      console.error('Synchronous error during form submission:', err);
+      toast.error('Terjadi kesalahan tak terduga saat pengiriman form.', { duration: 3000 });
     }
   };
-  
-  // Handle delete sale
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Apakah Anda yakin ingin menghapus data penjualan ini?')) {
-      try {
-        await apiClient.delete(`/sales/${id}`);
-        
-        // Remove sale from list
-        setSales(sales.filter(sale => sale._id !== id));
-        
-        // Refresh stats
-        const statsRes = await apiClient.get('/sales/stats');
-        setSalesStats(statsRes.data.data);
-      } catch (err: any) {
-        console.error('Error deleting sale:', err);
-        setError(err.response?.data?.error || 'Gagal menghapus data penjualan');
+
+  // --- START MODIFIKASI handleDelete (mengikuti ProductsPage.tsx) ---
+  const handleDelete = (id: string, orderNumber: string) => {
+    toast((t) => (
+      <div className="flex flex-col items-center p-2">
+        <p className="text-gray-800 text-center mb-3">
+          Apakah Anda yakin ingin menghapus penjualan **{orderNumber}**?
+          <br />Tindakan ini tidak dapat dibatalkan.
+        </p>
+        <div className="flex gap-2 w-full justify-center">
+          <button
+            onClick={() => {
+              toast.dismiss(t.id); // Tutup toast konfirmasi
+              performDelete(id); // Lanjutkan dengan penghapusan
+            }}
+            className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition-colors text-sm"
+          >
+            Ya, Hapus!
+          </button>
+          <button
+            onClick={() => toast.dismiss(t.id)} // Tutup toast konfirmasi
+            className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded transition-colors text-sm"
+          >
+            Batal
+          </button>
+        </div>
+      </div>
+    ), {
+      duration: Infinity, // Toast akan tetap terbuka sampai diklik
+      position: 'top-center',
+      icon: '⚠️', // Opsional: Tambahkan ikon peringatan
+      style: {
+        maxWidth: '400px', // Atur lebar toast
+        padding: '16px',
+        borderRadius: '8px',
+        background: '#fff',
+        color: '#333',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+      },
+    });
+  };
+
+  // Fungsi terpisah untuk melakukan penghapusan sebenarnya
+  const performDelete = async (id: string) => {
+    toast.promise(
+      apiClient.delete(`/sales/${id}`),
+      {
+        loading: 'Menghapus penjualan...',
+        success: () => {
+          setSales(sales.filter((sale) => sale._id !== id));
+          apiClient.get('/sales/stats').then(statsRes => setSalesStats(statsRes.data.data)); // Refresh stats setelah penghapusan berhasil
+          return 'Penjualan berhasil dihapus!';
+        },
+        error: (err) => {
+          console.error('Error deleting sale:', err.response?.data || err.message);
+          return err.response?.data?.error || 'Gagal menghapus penjualan!';
+        },
       }
-    }
+    );
   };
-  
+  // --- END MODIFIKASI handleDelete ---
+
   // Handle modal open for editing sale
   const handleEdit = (sale: Sale) => {
     setCurrentSale(sale);
     setIsEditing(true);
     setIsModalOpen(true);
   };
-  
+
   // Handle modal open for adding new sale
   const handleAdd = () => {
     setCurrentSale({
@@ -375,7 +436,7 @@ const SalesPage: React.FC = () => {
     setIsEditing(false);
     setIsModalOpen(true);
   };
-  
+
   // Get status badge color
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -394,18 +455,18 @@ const SalesPage: React.FC = () => {
         return 'bg-gray-100 text-gray-800';
     }
   };
-  
+
   // Prepare chart data
   const getChartData = () => {
     if (!salesStats) return null;
-    
+
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const monthlyData = Array(12).fill(0);
-    
+
     salesStats.monthlyBreakdown.forEach(item => {
       monthlyData[item._id - 1] = item.totalAmount;
     });
-    
+
     return {
       labels: months,
       datasets: [
@@ -420,9 +481,10 @@ const SalesPage: React.FC = () => {
       ]
     };
   };
-  
+
   return (
     <div className="container mx-auto px-4 py-6">
+      <Toaster /> {/* Modifikasi: Tambah komponen Toaster */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Manajemen Penjualan</h1>
         <motion.button
@@ -434,13 +496,9 @@ const SalesPage: React.FC = () => {
           Tambah Penjualan
         </motion.button>
       </div>
-      
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4">
-          {error}
-        </div>
-      )}
-      
+
+      {/* Modifikasi: Hapus blok error */}
+
       {/* Sales Statistics */}
       {!isLoading && salesStats && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -451,7 +509,7 @@ const SalesPage: React.FC = () => {
               <p className="ml-2 text-sm text-gray-600">({salesStats.today.totalSales} transaksi)</p>
             </div>
           </div>
-          
+
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="text-sm font-medium text-gray-500 mb-2">Penjualan Bulan Ini</h3>
             <div className="flex items-baseline">
@@ -459,7 +517,7 @@ const SalesPage: React.FC = () => {
               <p className="ml-2 text-sm text-gray-600">({salesStats.month.totalSales} transaksi)</p>
             </div>
           </div>
-          
+
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="text-sm font-medium text-gray-500 mb-2">Penjualan Tahun Ini</h3>
             <div className="flex items-baseline">
@@ -469,14 +527,14 @@ const SalesPage: React.FC = () => {
           </div>
         </div>
       )}
-      
+
       {/* Sales Chart */}
       {!isLoading && salesStats && (
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Grafik Penjualan Bulanan</h3>
           <div className="h-64">
-            <Line 
-              data={getChartData() as any} 
+            <Line
+              data={getChartData() as any}
               options={{
                 responsive: true,
                 maintainAspectRatio: false,
@@ -495,7 +553,7 @@ const SalesPage: React.FC = () => {
           </div>
         </div>
       )}
-      
+
       {/* Date Range Filter */}
       <div className="bg-white rounded-lg shadow p-4 mb-6">
         <h3 className="text-sm font-medium text-gray-700 mb-2">Filter Tanggal</h3>
@@ -528,7 +586,7 @@ const SalesPage: React.FC = () => {
           Terapkan Filter
         </button>
       </div>
-      
+
       {/* Sales Table */}
       {isLoading ? (
         <div className="flex justify-center items-center h-64">
@@ -605,7 +663,7 @@ const SalesPage: React.FC = () => {
                         Edit
                       </button>
                       <button
-                        onClick={() => handleDelete(sale._id)}
+                        onClick={() => handleDelete(sale._id, sale.orderNumber)} 
                         className="text-red-600 hover:text-red-900"
                       >
                         Hapus
@@ -624,7 +682,7 @@ const SalesPage: React.FC = () => {
           </table>
         </div>
       )}
-      
+
       {/* Sale Form Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -638,7 +696,7 @@ const SalesPage: React.FC = () => {
                 {isEditing ? `Edit Penjualan #${currentSale.orderNumber}` : 'Tambah Penjualan Baru'}
               </h3>
             </div>
-            
+
             <form onSubmit={handleSubmit}>
               <div className="px-6 py-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -665,7 +723,7 @@ const SalesPage: React.FC = () => {
                       ))}
                     </select>
                   </div>
-                  
+
                   <div>
                     <label htmlFor="employee" className="block text-sm font-medium text-gray-700 mb-1">
                       Pegawai
@@ -686,7 +744,7 @@ const SalesPage: React.FC = () => {
                     </select>
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                   <div>
                     <label htmlFor="orderType" className="block text-sm font-medium text-gray-700 mb-1">
@@ -705,7 +763,7 @@ const SalesPage: React.FC = () => {
                       <option value="Delivery">Delivery</option>
                     </select>
                   </div>
-                  
+
                   <div>
                     <label htmlFor="paymentMethod" className="block text-sm font-medium text-gray-700 mb-1">
                       Metode Pembayaran
@@ -726,7 +784,7 @@ const SalesPage: React.FC = () => {
                       <option value="Lainnya">Lainnya</option>
                     </select>
                   </div>
-                  
+
                   <div>
                     <label htmlFor="paymentStatus" className="block text-sm font-medium text-gray-700 mb-1">
                       Status Pembayaran
@@ -745,7 +803,7 @@ const SalesPage: React.FC = () => {
                     </select>
                   </div>
                 </div>
-                
+
                 <div className="mb-4">
                   <label htmlFor="orderStatus" className="block text-sm font-medium text-gray-700 mb-1">
                     Status Pesanan
@@ -765,7 +823,7 @@ const SalesPage: React.FC = () => {
                     <option value="Dibatalkan">Dibatalkan</option>
                   </select>
                 </div>
-                
+
                 <div className="mb-6">
                   <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
                     Catatan (Opsional)
@@ -779,11 +837,11 @@ const SalesPage: React.FC = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-kebab-red focus:border-kebab-red"
                   />
                 </div>
-                
+
                 {/* Items Section */}
                 <div className="border-t border-b py-4 mb-4">
                   <h4 className="text-md font-medium text-gray-900 mb-4">Item Pesanan</h4>
-                  
+
                   {/* Add New Item */}
                   <div className="grid grid-cols-12 gap-2 mb-4">
                     <div className="col-span-7">
@@ -821,7 +879,7 @@ const SalesPage: React.FC = () => {
                       </button>
                     </div>
                   </div>
-                  
+
                   {/* Items List */}
                   <div className="bg-gray-50 rounded-lg overflow-hidden">
                     <table className="min-w-full divide-y divide-gray-200">
@@ -893,7 +951,7 @@ const SalesPage: React.FC = () => {
                   </div>
                 </div>
               </div>
-              
+
               <div className="px-6 py-3 bg-gray-50 flex justify-end space-x-3 rounded-b-lg sticky bottom-0">
                 <button
                   type="button"
